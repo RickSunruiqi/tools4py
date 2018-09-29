@@ -2,10 +2,39 @@
 __author__ = 'ricksun'
 
 
-import time
 import datetime
 import psutil
 import threading
+
+
+CPU_PERCENT_INTERVAL = 1
+
+
+class MyThread(threading.Thread):
+    def __init__(self, func, args, name='', verb=False):
+        threading.Thread.__init__(self)
+        self.name = name
+        self.func = func
+        self.args = args
+        self.verb = verb
+        self.res = None
+
+    def get_result(self):
+        return self.res
+
+    def run(self):
+        if self.verb:
+            print 'starting', self.name, 'at:', datetime.datetime.now()
+        self.res = self.func(*self.args)
+        if self.verb:
+            print self.name, 'finished at:', datetime.datetime.now()
+
+
+def get_pro_res(pid):
+    pro = psutil.Process(pid)
+    cpu_perc = pro.cpu_percent(interval=CPU_PERCENT_INTERVAL)
+    mem_byte = pro.memory_info().rss
+    return cpu_perc, mem_byte
 
 
 def process_monitor(pid_list):
@@ -15,7 +44,7 @@ def process_monitor(pid_list):
     pro_memory_list = []
 
     while True:
-        time.sleep(0.5)
+        # time.sleep(0.5)
         sys_cpu_ = psutil.cpu_percent()
         sys_cpu_list.append(sys_cpu_)
         # print "cpu: \033[1;31;42m%s%%\033[0m" % sys_cpu_
@@ -26,35 +55,32 @@ def process_monitor(pid_list):
         sys_memory_ = float(memory.used) / float(memory.total) * 100
         sys_memory_list.append(sys_memory_)
         # print "sys mem: %.2f%%" % sys_memory_
-        # pro = psutil.pids()
-        # # print(pro)
 
         print datetime.datetime.now()
-        pro_cpu_, pro_memory_ = get_pro_res_2(pid_list)
-        # print "pro cpu: %.2f%%" % pro_cpu_[0]
+        threads = []
+        for pid_ in pid_list:
+            t = MyThread(get_pro_res, (pid_,), pid_.__str__())
+            threads.append(t)
+
+        for thread_ in threads:
+            thread_.start()
+
+        for thread_ in threads:
+            thread_.join()
+
+        pro_cpu_ = []
+        pro_memory_ = []
+        for thread_ in threads:
+            pro_cpu_.append(thread_.get_result()[0])
+            pro_memory_.append(thread_.get_result()[1])
+
         pro_cpu_list.append(pro_cpu_)
         print "pro cpu (perc):", pro_cpu_list
-        # p = psutil.Process(pid_list[0])
-        # pro_memory_ = p.memory_percent()
-        # print "pro mem: %.2f%%" % pro_memory_
+
         pro_memory_list.append(pro_memory_)
         print "pro mem (byte):", pro_memory_list
 
 
-def get_pro_res_2(pid_list):
-    processes = [psutil.Process(pid=i) for i in pid_list]
-    cpu_perc = [p.cpu_percent(interval=0.5) for p in processes]
-    # mem_perc = [p.memory_percent() for p in processes]
-    mem_byte = [p.memory_info().rss for p in processes]
-    return cpu_perc, mem_byte
-
-
-def get_pro_res(pid):
-    pro = psutil.Process(pid)
-    cpu_perc = pro.cpu_percent(interval=0.5)
-    mem_byte = pro.memory_info().rss
-    return cpu_perc, mem_byte
-
-
 if __name__ == '__main__':
-    process_monitor([1,2)
+    pid_list = [1623, 1483]
+    process_monitor(pid_list)
